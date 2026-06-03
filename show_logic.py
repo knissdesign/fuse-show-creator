@@ -344,16 +344,33 @@ def copy_and_rename(src: str, dest_dir: str, show_name: str,
 
     # Rename FULLSHOW items, walking bottom-up so a renamed parent folder
     # never invalidates the paths of children still to be processed.
+    # _rename_with_retry handles the Windows [WinError 5] "Access is denied"
+    # that occurs on network drives (Y:/) when Explorer or a sync client
+    # briefly holds a lock on a newly-created folder.
+    import time
+
+    def _rename_with_retry(old: str, new: str, retries: int = 6, delay: float = 0.5):
+        for attempt in range(retries):
+            try:
+                os.rename(old, new)
+                return None          # success
+            except OSError as e:
+                if attempt < retries - 1:
+                    time.sleep(delay)
+                else:
+                    return str(e)    # give up, return error message
+
     renamed = 0
     for root, dirs, files in os.walk(dest_show, topdown=False):
         for name in files:
             if "FULLSHOW" in name:
-                try:
-                    os.rename(os.path.join(root, name),
-                              os.path.join(root, name.replace("FULLSHOW", show_name)))
+                old = os.path.join(root, name)
+                new = os.path.join(root, name.replace("FULLSHOW", show_name))
+                err = _rename_with_retry(old, new)
+                if err:
+                    errors.append(f"rename {old}: {err}")
+                else:
                     renamed += 1
-                except Exception as e:
-                    errors.append(f"rename {os.path.join(root, name)}: {e}")
         for name in dirs:
             new_name = None
             if "FULLSHOW" in name:
@@ -361,12 +378,13 @@ def copy_and_rename(src: str, dest_dir: str, show_name: str,
             elif name in renames:
                 new_name = renames[name]
             if new_name and new_name != name:
-                try:
-                    os.rename(os.path.join(root, name),
-                              os.path.join(root, new_name))
+                old = os.path.join(root, name)
+                new = os.path.join(root, new_name)
+                err = _rename_with_retry(old, new)
+                if err:
+                    errors.append(f"rename {old}: {err}")
+                else:
                     renamed += 1
-                except Exception as e:
-                    errors.append(f"rename {os.path.join(root, name)}: {e}")
 
     if progress_cb:
         progress_cb(total_files + 1, total_files + 1)
