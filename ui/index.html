@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fuse Show Creator</title>
+<style>
+  :root {
+    --bg:      #f2f1ee;
+    --card:    #ffffff;
+    --card2:   #f7f6f3;
+    --hdr:     #1e1e22;
+    --border:  #dddbd6;
+    --accent:  #1e1e22;
+    --accent2: #3a6bbf;
+    --text:    #1a1a1e;
+    --dim:     #888580;
+    --danger:  #c0392b;
+    --warn:    #b7770d;
+    --ok:      #2e7d32;
+    --err-bg:  #fff0ee;
+    --err-bd:  #e8a09a;
+    --serif:   Georgia, 'Times New Roman', serif;
+    --mono:    'Courier New', Courier, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--serif);
+    -webkit-font-smoothing: antialiased;
+    height: 100%;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* ── Header ───────────────────────────────── */
+  header {
+    background: var(--hdr);
+    height: 64px;
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  header img { height: 42px; width: auto; display: block; }
+  header .subtitle {
+    color: #aaaaaa;
+    font-weight: bold;
+    font-size: 16px;
+  }
+
+  /* ── Layout ───────────────────────────────── */
+  main {
+    padding: 12px 20px 20px;
+    height: calc(100% - 64px);
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .section-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 0.08em;
+    color: var(--dim);
+    margin: 0 0 4px 2px;
+    text-transform: uppercase;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+  }
+
+  /* ── Show details ─────────────────────────── */
+  .fields {
+    display: grid;
+    grid-template-columns: 2fr 3fr 1fr;
+    gap: 10px;
+  }
+  .field label {
+    display: block;
+    font-size: 11px;
+    color: var(--dim);
+    margin-bottom: 3px;
+  }
+  .field input {
+    width: 100%;
+    height: 34px;
+    padding: 0 10px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text);
+    background: var(--card2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    outline: none;
+    user-select: text;
+  }
+  .field input:focus { border-color: var(--accent2); }
+
+  /* ── Selects ──────────────────────────────── */
+  select {
+    height: 34px;
+    padding: 0 8px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text);
+    background: var(--card2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    outline: none;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M0 0l5 6 5-6z' fill='%23888580'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 26px;
+  }
+  select:focus { border-color: var(--accent2); }
+  .field select { width: 100%; }
+  .full-select { width: 100%; }
+
+  /* ── Show Options rows ────────────────────── */
+  .opt-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 34px;
+  }
+  .opt-row + .opt-row { margin-top: 10px; }
+  .opt-label { width: 154px; font-size: 11px; color: var(--dim); flex-shrink: 0; }
+  .opt-row select { width: 220px; }
+  .checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .checkbox input {
+    width: 16px; height: 16px;
+    accent-color: var(--accent2);
+    cursor: pointer;
+  }
+
+  .preview {
+    margin-top: 10px;
+    background: var(--card2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 7px 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .preview .lbl { font-size: 11px; color: var(--dim); }
+  .preview .val {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: bold;
+    color: var(--accent);
+  }
+
+  /* ── Similar shows ────────────────────────── */
+  #similar {
+    height: 132px;
+    overflow-y: auto;
+  }
+  #similar .placeholder,
+  #similar .none {
+    font-size: 11px;
+    padding: 8px 2px;
+  }
+  #similar .placeholder { color: var(--dim); }
+  #similar .none { color: var(--ok); }
+  .simrow {
+    display: flex;
+    align-items: center;
+    padding: 4px 2px;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  .simrow + .simrow { border-top: 1px solid var(--border); }
+  .simrow .dot { width: 16px; font-size: 9px; }
+  .simrow .name { flex: 1; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .simrow .pct  { width: 60px; text-align: right; font-weight: bold; font-size: 10px; }
+
+  /* ── Folder rows ──────────────────────────── */
+  .frow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .frow:last-child { margin-bottom: 0; }
+  .frow .flabel { width: 154px; font-size: 11px; color: var(--dim); flex-shrink: 0; }
+  .frow input {
+    flex: 1;
+    height: 32px;
+    padding: 0 10px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text);
+    background: var(--card2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    outline: none;
+    user-select: text;
+  }
+  .frow input.invalid { background: var(--err-bg); border-color: var(--err-bd); }
+  .btn-small {
+    height: 32px;
+    padding: 0 14px;
+    font-family: var(--serif);
+    font-size: 11px;
+    color: var(--accent2);
+    background: var(--card2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .btn-small:hover { background: #eceae5; }
+
+  /* ── Progress ─────────────────────────────── */
+  .progress-track {
+    height: 8px;
+    background: var(--card2);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 6px;
+  }
+  .progress-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--accent2);
+    border-radius: 4px;
+    transition: width 0.15s ease;
+  }
+  #status { font-size: 11px; color: var(--dim); }
+
+  /* ── Main button ──────────────────────────── */
+  .btn-primary {
+    width: 100%;
+    height: 44px;
+    margin-top: 2px;
+    font-family: var(--serif);
+    font-size: 14px;
+    font-weight: bold;
+    color: #ffffff;
+    background: var(--hdr);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .btn-primary:hover:not(:disabled) { background: #333338; }
+  .btn-primary:disabled { opacity: 0.6; cursor: default; }
+
+  /* ── Success overlay ──────────────────────── */
+  #overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(20,20,24,0.45);
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+  #overlay.show { display: flex; }
+  .dialog {
+    background: var(--bg);
+    border-radius: 12px;
+    padding: 28px 32px 26px;
+    width: 460px;
+    max-width: 90%;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  }
+  .dialog .check { font-size: 40px; color: var(--ok); font-weight: bold; line-height: 1; }
+  .dialog .dname {
+    font-family: var(--mono);
+    font-size: 16px;
+    font-weight: bold;
+    color: var(--accent);
+    margin: 10px 0 2px;
+    word-break: break-word;
+  }
+  .dialog .created { font-size: 15px; margin-bottom: 10px; }
+  .dialog .counts { font-size: 11px; color: var(--dim); margin-bottom: 18px; }
+
+  /* ── Error overlay ────────────────────────── */
+  .dialog .err-title { font-size: 16px; font-weight: bold; color: var(--danger); margin-bottom: 8px; }
+  .dialog .err-body  { font-size: 12px; color: var(--text); text-align: left; white-space: pre-wrap; max-height: 200px; overflow:auto; margin-bottom: 16px; font-family: var(--mono); }
+</style>
+</head>
+<body>
+  <header>
+    <img id="logo" alt="Fuse Technical Group" src="data:image/png;base64,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9ev15s2bv3369OnnwzA8w8wnAMwEQTCklMqW2Sy5NtMLT5IkM8aYcuozdb5n5hkiCnpYdGdrtZryPM96//vf39c46leXdV4ZEAArfb4Q6NkeCzOzRb+2Cwm/XwiyuNu99967/+TJk6unpqbeJIT4R2Yup05k99VP5n7yCZpvPb8A9LOyFuy1Xsx3CzEz+33zMyjCo49+9KMBAFx77bXStu1+4f2L5ccws5236FzXhe/7CypE79khacgipUuZ9YV0BC0EOqOqC48Vx3Heq+002LVrF/WijXNet5BSzjvysoBiN2TK635fr9fl4cOHeWZmhpjZShNM3XTPmyFJkpDjOCLPZPY9Mw8FQbCn0Wg4YRhm1ZyCmf+G28UNplv2vK7OU/Dx48d5+fLlTWZWeSsrNeka8ykkB620A4QxRqcxGwLQrFQqKmWym6MEAIQQs8YYBUClFky2pidxerCxH1xoFvV4rwHgQx/6UAKgycwWM2exMyYiYYxpdeOxbTsxxiRSSmitk3TAaq21JKJk586dPwLwR93t7rnnHmRy91vVeobfP/zhD49Uq9VlrVarE353XZd83/+HHTt2/ADo64cQAN64ceMyx3EuiePYALhECJGdHzm1ffv272zYsGHx4sWLZbN5Ll2dJqVejON4yHXdq+I47gQVLctCFEX+jh07vtGHLgCgF95KpYJms3k6/T3c452q1WqnN23adHWpVBputVrsOA5FURS4rjsbBMEL27dvP9kt8x133PHqcrlcUkotQdtfYtd1SSk1PT09ffKNb3zj8iRJ5mQm4zjW27dvP3nnnXdWly5dWurBS6tX9bvFzFOO47w6b2UVCgURBME3Jycn1/UwWXvCXXfddVWlUjlgjIGUUsZx/MM4jv9LoVA4SERWNm2JSLmuazUajU3MXBocHLzd930NQKZ+JQFIkiT51fvuu+9or/C753mvJaIniEhmHUlEqlwuWzMzM1uIqDAwMLDZ9/0sApyZ5EEQBGOFQuEztm1fqpQylmWJJElOHjlyZE29Xo+75c1KljZu3PiOarX6+XTgwXVd2Wg0PmOMOTI4OPjfW61WhxYRsZSSwzC8wbKsewuFwjVRFHV8Ldu2SSk13WtPEER0hZRymTGm44ekPsEVF+oEAHj00Uetxx57zLRarcts214ZRRGkbB+4AnCJlHIo/70xhqWURESXGGMW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">
+    <span class="subtitle">Show Creator</span>
+  </header>
+
+  <main>
+    <!-- Show details -->
+    <div>
+      <div class="section-label">Show Details</div>
+      <div class="card">
+        <div class="fields">
+          <div class="field">
+            <label for="artist">Artist</label>
+            <input id="artist" type="text" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="field">
+            <label for="desc">Show Description</label>
+            <input id="desc" type="text" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="field">
+            <label for="year">Year</label>
+            <select id="year"></select>
+          </div>
+        </div>
+        <div class="preview">
+          <span class="lbl">Folder name:</span>
+          <span class="val" id="preview">—</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Similar shows -->
+    <div>
+      <div class="section-label">Existing Similar Shows</div>
+      <div class="card">
+        <div id="similar">
+          <div class="placeholder">Start typing show details to check for similar existing shows…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Show Options -->
+    <div>
+      <div class="section-label">Show Options</div>
+      <div class="card">
+        <div class="opt-row">
+          <span class="opt-label">CAD Application</span>
+          <select id="cad">
+            <option value="AutoCAD">AutoCAD</option>
+            <option value="Vectorworks">Vectorworks</option>
+          </select>
+        </div>
+        <div class="opt-row">
+          <label class="checkbox">
+            <input type="checkbox" id="shortcut">
+            <span>Create show shortcut</span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Folders -->
+    <div>
+      <div class="section-label">Folders</div>
+      <div class="card">
+        <div class="frow">
+          <span class="flabel">Template Folder</span>
+          <input id="src" type="text" spellcheck="false" value="Locating template folder…">
+          <button class="btn-small" onclick="pickFolder('src')">Browse</button>
+        </div>
+        <div class="frow">
+          <span class="flabel">Active Show Directory</span>
+          <input id="dest" type="text" spellcheck="false" value="Locating active show directory…">
+          <button class="btn-small" onclick="pickFolder('dest')">Browse</button>
+        </div>
+        <div class="frow" id="shortcutRow" style="display:none">
+          <span class="flabel">Shortcut Folder</span>
+          <input id="shortcut_dir" type="text" spellcheck="false" placeholder="Choose a folder for the show shortcut">
+          <button class="btn-small" onclick="pickFolder('shortcut_dir')">Browse</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Progress -->
+    <div>
+      <div class="section-label">Progress</div>
+      <div class="card">
+        <div class="progress-track"><div class="progress-fill" id="bar"></div></div>
+        <div id="status">Ready.</div>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="run" onclick="createShow()">Create Show Folder</button>
+  </main>
+
+  <!-- Success / error overlay -->
+  <div id="overlay">
+    <div class="dialog" id="dialog"></div>
+  </div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  let similarResults = [];
+  let simTimer = null;
+  let apiReady = false;
+
+  // pywebview signals readiness via this event
+  window.addEventListener('pywebviewready', () => {
+    apiReady = true;
+    loadInitial();
+  });
+
+  function api() { return window.pywebview.api; }
+
+  // Populate the Year dropdown immediately from JS (current year, -1 .. +2),
+  // defaulting to the current year. Not persisted — always defaults to "now".
+  function populateYears() {
+    const cur = new Date().getFullYear();
+    const years = [cur - 1, cur, cur + 1, cur + 2];
+    const sel = $('year');
+    sel.innerHTML = '';
+    years.forEach(y => {
+      const o = document.createElement('option');
+      o.value = String(y);
+      o.textContent = String(y);
+      if (y === cur) o.selected = true;
+      sel.appendChild(o);
+    });
+  }
+  populateYears();
+
+  async function loadInitial() {
+    try {
+      const s = await api().initial_state();
+      $('src').value  = s.src  || '';
+      $('dest').value = s.dest || '';
+      $('src').classList.toggle('invalid',  !s.src_ok);
+      $('dest').classList.toggle('invalid', !s.dest_ok);
+      if (s.cad) $('cad').value = s.cad;
+      $('shortcut').checked = !!s.make_shortcut;
+      $('shortcut_dir').value = s.shortcut_dir || '';
+      $('shortcut_dir').classList.toggle('invalid', s.make_shortcut && !s.shortcut_ok);
+      updateShortcutRow();
+      refreshSimilar();
+    } catch (e) { console.error(e); }
+  }
+
+  // Persist template dir, active dir, CAD app, and shortcut settings.
+  function saveSettings() {
+    if (!apiReady) return;
+    try {
+      api().save_settings({
+        src:  $('src').value.trim(),
+        dest: $('dest').value.trim(),
+        cad:  $('cad').value,
+        make_shortcut: $('shortcut').checked,
+        shortcut_dir:  $('shortcut_dir').value.trim(),
+      });
+    } catch (e) { console.error(e); }
+  }
+
+  // Show/hide the Shortcut Folder row based on the checkbox.
+  function updateShortcutRow() {
+    $('shortcutRow').style.display = $('shortcut').checked ? '' : 'none';
+  }
+
+  function showName() {
+    const a = $('artist').value.trim();
+    const d = $('desc').value.trim();
+    const y = $('year').value.trim();
+    return (a || d || y) ? [a, d, y].filter(Boolean).join(' ') : '';
+  }
+
+  function onFieldChange() {
+    const n = showName();
+    $('preview').textContent = n || '—';
+    if (simTimer) clearTimeout(simTimer);
+    simTimer = setTimeout(refreshSimilar, 350);
+  }
+  ['artist', 'desc'].forEach(id => $(id).addEventListener('input', onFieldChange));
+  $('year').addEventListener('change', onFieldChange);
+
+  // Persist settings (debounced for typing) when folders or CAD app change.
+  let saveTimer = null;
+  function queueSave() {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveSettings, 500);
+  }
+
+  $('cad').addEventListener('change', saveSettings);
+
+  $('shortcut').addEventListener('change', () => {
+    updateShortcutRow();
+    saveSettings();
+  });
+  $('shortcut_dir').addEventListener('input', () => {
+    $('shortcut_dir').classList.remove('invalid');
+    queueSave();
+  });
+
+  $('dest').addEventListener('input', () => {
+    $('dest').classList.remove('invalid');
+    queueSave();
+    if (simTimer) clearTimeout(simTimer);
+    simTimer = setTimeout(refreshSimilar, 350);
+  });
+  $('src').addEventListener('input', () => {
+    $('src').classList.remove('invalid');
+    queueSave();
+  });
+
+  async function refreshSimilar() {
+    if (!apiReady) return;
+    const name = showName();
+    const dest = $('dest').value.trim();
+    const box = $('similar');
+    if (!name) {
+      similarResults = [];
+      box.innerHTML = '<div class="placeholder">Start typing show details to check for similar existing shows…</div>';
+      return;
+    }
+    try {
+      const res = await api().find_similar(name, dest);  // [[name, score], ...]
+      similarResults = res || [];
+      renderSimilar();
+    } catch (e) { console.error(e); }
+  }
+
+  function colorFor(pct) {
+    if (pct > 80) return 'var(--danger)';
+    if (pct > 65) return 'var(--warn)';
+    return 'var(--accent2)';
+  }
+
+  function renderSimilar() {
+    const box = $('similar');
+    if (!similarResults.length) {
+      box.innerHTML = '<div class="none">✓&nbsp; No similar shows found — this name looks unique.</div>';
+      return;
+    }
+    box.innerHTML = '';
+    similarResults.forEach(([folder, score]) => {
+      const pct = Math.round(score * 100);
+      const c = colorFor(pct);
+      const row = document.createElement('div');
+      row.className = 'simrow';
+      row.innerHTML =
+        `<span class="dot" style="color:${c}">●</span>` +
+        `<span class="name"></span>` +
+        `<span class="pct" style="color:${c}">${pct}% match</span>`;
+      row.querySelector('.name').textContent = folder;
+      box.appendChild(row);
+    });
+  }
+
+  async function pickFolder(which) {
+    if (!apiReady) return;
+    try {
+      const path = await api().pick_folder();
+      if (path) {
+        $(which).value = path;
+        const ok = await api().check_path(path);
+        $(which).classList.toggle('invalid', !ok);
+        saveSettings();
+        if (which === 'dest') refreshSimilar();
+      }
+    } catch (e) { console.error(e); }
+  }
+
+  function setProgress(frac) { $('bar').style.width = Math.round(frac * 100) + '%'; }
+  function setStatus(msg)    { $('status').textContent = msg; }
+
+  // Called from Python during the copy
+  window.onProgress = (done, total) => {
+    setProgress(total ? done / total : 1);
+    setStatus(`Copying ${done} / ${total} items…`);
+  };
+  window.onComplete = (showNameStr, destShow, count, renamed, shortcutNote) => {
+    setProgress(1);
+    setStatus(`✓  "${showNameStr}" created successfully.`);
+    $('run').disabled = false;
+    $('run').textContent = 'Create Show Folder';
+    saveSettings();
+    showSuccess(showNameStr, destShow, count, renamed, shortcutNote || '');
+  };
+  window.onError = (msg) => {
+    $('run').disabled = false;
+    $('run').textContent = 'Create Show Folder';
+    setStatus('Error.');
+    showError(msg);
+  };
+
+  async function createShow() {
+    if (!apiReady) return;
+    const artist = $('artist').value.trim();
+    const desc   = $('desc').value.trim();
+    const year   = $('year').value.trim();
+    const src    = $('src').value.trim();
+    const dest   = $('dest').value.trim();
+
+    const errs = [];
+    if (!artist) errs.push('Artist is required.');
+    if (!desc)   errs.push('Show Description is required.');
+    if (!year)   errs.push('Year is required.');
+    else if (!/^\d{4}$/.test(year)) errs.push('Year must be 4 digits.');
+    if (!src)  errs.push('Template Folder is required.');
+    if (!dest) errs.push('Active Show Directory is required.');
+
+    const makeShortcut = $('shortcut').checked;
+    const shortcutDir  = $('shortcut_dir').value.trim();
+    if (makeShortcut && !shortcutDir) errs.push('Shortcut Folder is required when "Create show shortcut" is on.');
+    if (errs.length) { showError(errs.join('\n')); return; }
+
+    // Validate folders exist
+    const checks = [api().check_path(src), api().check_path(dest)];
+    if (makeShortcut) checks.push(api().check_path(shortcutDir));
+    const results = await Promise.all(checks);
+    const srcOk = results[0], destOk = results[1];
+    const scOk  = makeShortcut ? results[2] : true;
+    $('src').classList.toggle('invalid', !srcOk);
+    $('dest').classList.toggle('invalid', !destOk);
+    $('shortcut_dir').classList.toggle('invalid', makeShortcut && !scOk);
+    if (!srcOk || !destOk || !scOk) {
+      showError((!srcOk ? 'Template Folder does not exist.\n' : '') +
+                (!destOk ? 'Active Show Directory does not exist.\n' : '') +
+                (makeShortcut && !scOk ? 'Shortcut Folder does not exist.' : ''));
+      return;
+    }
+
+    const name = showName();
+
+    // Exact + fuzzy duplicate handling
+    const exists = await api().show_exists(dest, name);
+    if (exists) { showError(`A show folder named "${name}" already exists.\n\nOperation aborted.`); return; }
+
+    if (similarResults.length) {
+      const choice = await showSimilarConfirm(name);
+      if (choice === 'abort') { setStatus('Aborted by user.'); return; }
+      if (choice !== 'continue') {
+        showError(`Files will NOT be copied.\n\nYou chose to use the existing folder:\n"${choice}"\n\nPlease manage files there manually.`);
+        return;
+      }
+    }
+
+    $('run').disabled = true;
+    $('run').textContent = 'Creating…';
+    setProgress(0);
+    setStatus('Starting…');
+    // Fire and forget — Python pushes progress + completion via window.on* callbacks
+    api().create_show(artist, desc, year, src, dest, $('cad').value, makeShortcut, shortcutDir);
+  }
+
+  // ── Overlay dialogs ─────────────────────────
+  function closeOverlay() { $('overlay').classList.remove('show'); }
+
+  function showError(msg) {
+    $('dialog').innerHTML =
+      `<div class="err-title">Cannot Continue</div>` +
+      `<div class="err-body"></div>` +
+      `<button class="btn-primary" style="width:auto;padding:0 28px" onclick="closeOverlay()">OK</button>`;
+    $('dialog').querySelector('.err-body').textContent = msg;
+    $('overlay').classList.add('show');
+  }
+
+  function showSuccess(name, destShow, count, renamed, shortcutNote) {
+    const note = shortcutNote
+      ? `<div class="counts" style="margin-top:-10px">${shortcutNote}</div>` : '';
+    $('dialog').innerHTML =
+      `<div class="check">✓</div>` +
+      `<div class="dname"></div>` +
+      `<div class="created">Created</div>` +
+      `<div class="counts">${count} files copied · ${renamed} item(s) renamed</div>` +
+      note +
+      `<button class="btn-primary" style="width:auto;padding:0 24px" id="openClose">Open Folder &amp; Close</button>`;
+    $('dialog').querySelector('.dname').textContent = `"${name}"`;
+    $('openClose').onclick = () => api().open_and_quit(destShow);
+    $('overlay').classList.add('show');
+  }
+
+  // Returns a promise resolving to 'continue' | 'abort' | <folder name>
+  function showSimilarConfirm(name) {
+    return new Promise((resolve) => {
+      let rows = similarResults.map(([f, s]) => {
+        const pct = Math.round(s * 100);
+        const c = colorFor(pct);
+        return `<div class="simrow" style="cursor:pointer" data-folder="${encodeURIComponent(f)}">
+                  <span class="dot" style="color:${c}">●</span>
+                  <span class="name"></span>
+                  <span class="pct" style="color:${c}">${pct}%</span>
+                </div>`;
+      }).join('');
+      $('dialog').innerHTML =
+        `<div class="err-title" style="color:var(--accent)">Similar Shows Detected</div>` +
+        `<div style="font-size:12px;color:var(--dim);margin-bottom:10px">Did you mean one of these? Click to use an existing folder.</div>` +
+        `<div style="max-height:170px;overflow:auto;text-align:left;border:1px solid var(--border);border-radius:8px;padding:6px 10px;margin-bottom:16px">${rows}</div>` +
+        `<div style="display:flex;gap:8px;justify-content:center">` +
+          `<button class="btn-small" style="height:36px" id="dlgAbort">Abort</button>` +
+          `<button class="btn-primary" style="width:auto;padding:0 18px" id="dlgContinue">Create New Anyway</button>` +
+        `</div>`;
+      // fill names safely
+      const nodes = $('dialog').querySelectorAll('.simrow');
+      nodes.forEach((node, i) => {
+        node.querySelector('.name').textContent = similarResults[i][0];
+        node.onclick = () => { closeOverlay(); resolve(similarResults[i][0]); };
+      });
+      $('dlgAbort').onclick    = () => { closeOverlay(); resolve('abort'); };
+      $('dlgContinue').onclick = () => { closeOverlay(); resolve('continue'); };
+      $('overlay').classList.add('show');
+    });
+  }
+</script>
+</body>
+</html>
