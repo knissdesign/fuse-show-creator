@@ -348,13 +348,6 @@
       <div class="section-label">Show Options</div>
       <div class="card">
         <div class="opt-row">
-          <span class="opt-label">CAD Application</span>
-          <select id="cad">
-            <option value="AutoCAD">AutoCAD</option>
-            <option value="Vectorworks">Vectorworks</option>
-          </select>
-        </div>
-        <div class="opt-row">
           <label class="checkbox">
             <input type="checkbox" id="shortcut">
             <span>Create show shortcut</span>
@@ -440,7 +433,6 @@
       $('dest').value = s.dest || '';
       $('src').classList.toggle('invalid',  !s.src_ok);
       $('dest').classList.toggle('invalid', !s.dest_ok);
-      if (s.cad) $('cad').value = s.cad;
       $('shortcut').checked = !!s.make_shortcut;
       $('shortcut_dir').value = s.shortcut_dir || '';
       $('shortcut_dir').classList.toggle('invalid', s.make_shortcut && !s.shortcut_ok);
@@ -456,7 +448,6 @@
       api().save_settings({
         src:  $('src').value.trim(),
         dest: $('dest').value.trim(),
-        cad:  $('cad').value,
         make_shortcut: $('shortcut').checked,
         shortcut_dir:  $('shortcut_dir').value.trim(),
       });
@@ -490,8 +481,6 @@
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(saveSettings, 500);
   }
-
-  $('cad').addEventListener('change', saveSettings);
 
   $('shortcut').addEventListener('change', () => {
     updateShortcutRow();
@@ -651,7 +640,7 @@
     setProgress(0);
     setStatus('Starting…');
     // Fire and forget — Python pushes progress + completion via window.on* callbacks
-    api().create_show(artist, desc, year, src, dest, $('cad').value, makeShortcut, shortcutDir);
+    api().create_show(artist, desc, year, src, dest, makeShortcut, shortcutDir);
   }
 
   // ── Overlay dialogs ─────────────────────────

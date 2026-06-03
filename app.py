@@ -58,7 +58,6 @@ class Api:
             "dest":    dest,
             "src_ok":  os.path.isdir(src)  if src  else False,
             "dest_ok": os.path.isdir(dest) if dest else False,
-            "cad":           saved.get("cad", "AutoCAD"),
             "make_shortcut": bool(saved.get("make_shortcut", False)),
             "shortcut_dir":  shortcut_dir,
             "shortcut_ok":   os.path.isdir(shortcut_dir) if shortcut_dir else False,
@@ -91,22 +90,22 @@ class Api:
         return result[0] if isinstance(result, (list, tuple)) else result
 
     # ── The main action: copy template + rename FULLSHOW (+ optional shortcut)
-    def create_show(self, artist, desc, year, src, dest, cad="AutoCAD",
+    def create_show(self, artist, desc, year, src, dest,
                     make_shortcut=False, shortcut_dir=""):
         """Kicks off the copy on a background thread and streams progress and
         completion back to the page via JS callbacks (onProgress / onComplete /
         onError). Returns immediately so the webview stays responsive."""
         show_name = L.build_show_name(artist, desc, year)
         dest_show = os.path.join(dest, show_name)
-        exclude   = L.cad_exclusions(cad)    # skip the non-selected CAD folder
-        renames   = L.cad_rename_map(cad)    # rename the kept CAD folder to 'CAD'
+        # Both CAD folders are copied as-is. To re-enable per-CAD filtering,
+        # restore the cad param and pass L.cad_exclusions/cad_rename_map here.
 
         def run():
             def progress(done, total):
                 self._js(f"window.onProgress({done}, {total})")
             try:
                 count, renamed, errors = L.copy_and_rename(
-                    src, dest, show_name, progress, exclude, renames)
+                    src, dest, show_name, progress)
             except Exception as e:
                 self._js("window.onError(%s)" % _jsstr(str(e)))
                 return

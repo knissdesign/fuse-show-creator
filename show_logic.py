@@ -192,22 +192,28 @@ def find_similar_folders(show_name: str, dest_dir: str) -> list:
 def build_show_name(artist: str, desc: str, year: str) -> str:
     return f"{artist.strip()} {desc.strip()} {year.strip()}"
 
-def cad_exclusions(cad: str) -> list:
-    """Folder name(s) to skip when copying, based on the chosen CAD application.
-    AutoCAD keeps 'CAD - ACAD' and drops 'CAD - VWX'; Vectorworks the reverse."""
-    if cad == "AutoCAD":
-        return ["CAD - VWX"]
-    if cad == "Vectorworks":
-        return ["CAD - ACAD"]
-    return []
-
-def cad_rename_map(cad: str) -> dict:
-    """After copying, the CAD folder that WAS kept is renamed to just 'CAD'."""
-    if cad == "AutoCAD":
-        return {"CAD - ACAD": "CAD"}
-    if cad == "Vectorworks":
-        return {"CAD - VWX": "CAD"}
-    return {}
+# ── CAD folder exclusion / rename — currently disabled ────────────────────────
+# Both CAD folders (CAD - ACAD and CAD - VWX) are copied as-is.
+# Re-enable these functions and wire them back into app.py / create_show()
+# if you want to restore per-CAD-app filtering and the rename to "CAD".
+#
+# def cad_exclusions(cad: str) -> list:
+#     """Folder name(s) to skip when copying, based on the chosen CAD application.
+#     AutoCAD keeps 'CAD - ACAD' and drops 'CAD - VWX'; Vectorworks the reverse."""
+#     if cad == "AutoCAD":
+#         return ["CAD - VWX"]
+#     if cad == "Vectorworks":
+#         return ["CAD - ACAD"]
+#     return []
+#
+# def cad_rename_map(cad: str) -> dict:
+#     """After copying, the CAD folder that WAS kept is renamed to just 'CAD'."""
+#     if cad == "AutoCAD":
+#         return {"CAD - ACAD": "CAD"}
+#     if cad == "Vectorworks":
+#         return {"CAD - VWX": "CAD"}
+#     return {}
+# ─────────────────────────────────────────────────────────────────────────────
 
 def open_in_file_manager(path: str) -> None:
     """Reveal a folder in the OS file manager (Finder / Explorer / xdg)."""
