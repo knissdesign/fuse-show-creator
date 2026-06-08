@@ -190,7 +190,8 @@ def find_similar_folders(show_name: str, dest_dir: str) -> list:
 # ── File Operations ────────────────────────────────────────────────────────
 
 def build_show_name(artist: str, desc: str, year: str) -> str:
-    return f"{artist.strip()} {desc.strip()} {year.strip()}"
+    """Build the show folder name, omitting any empty parts."""
+    return ' '.join(p.strip() for p in [artist, desc, year] if p.strip())
 
 # ── CAD folder exclusion / rename — currently disabled ────────────────────────
 # Both CAD folders (CAD - ACAD and CAD - VWX) are copied as-is.

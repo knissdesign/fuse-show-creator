@@ -232,20 +232,6 @@
   .btn-small:hover { background: #eceae5; }
 
   /* ── Progress ─────────────────────────────── */
-  .progress-track {
-    height: 8px;
-    background: var(--card2);
-    border-radius: 4px;
-    overflow: hidden;
-    margin-bottom: 6px;
-  }
-  .progress-fill {
-    height: 100%;
-    width: 0%;
-    background: var(--accent2);
-    border-radius: 4px;
-    transition: width 0.15s ease;
-  }
   #status { font-size: 11px; color: var(--dim); }
 
   /* ── Main button ──────────────────────────── */
@@ -314,7 +300,7 @@
       <div class="card">
         <div class="fields">
           <div class="field">
-            <label for="artist">Artist</label>
+            <label for="artist">Artist / Client</label>
             <input id="artist" type="text" autocomplete="off" spellcheck="false">
           </div>
           <div class="field">
@@ -375,15 +361,6 @@
           <input id="shortcut_dir" type="text" spellcheck="false" placeholder="Choose a folder for the show shortcut">
           <button class="btn-small" onclick="pickFolder('shortcut_dir')">Browse</button>
         </div>
-      </div>
-    </div>
-
-    <!-- Progress -->
-    <div>
-      <div class="section-label">Progress</div>
-      <div class="card">
-        <div class="progress-track"><div class="progress-fill" id="bar"></div></div>
-        <div id="status">Ready.</div>
       </div>
     </div>
 
@@ -560,8 +537,8 @@
     } catch (e) { console.error(e); }
   }
 
-  function setProgress(frac) { $('bar').style.width = Math.round(frac * 100) + '%'; }
-  function setStatus(msg)    { $('status').textContent = msg; }
+  function setProgress(frac) { }
+  function setStatus(msg)    { }
 
   // Called from Python during the copy
   window.onProgress = (done, total) => {
@@ -592,8 +569,7 @@
     const dest   = $('dest').value.trim();
 
     const errs = [];
-    if (!artist) errs.push('Artist is required.');
-    if (!desc)   errs.push('Show Description is required.');
+    if (!artist && !desc) errs.push('Artist / Client or Show Description is required.');
     if (!year)   errs.push('Year is required.');
     else if (!/^\d{4}$/.test(year)) errs.push('Year must be 4 digits.');
     if (!src)  errs.push('Template Folder is required.');
