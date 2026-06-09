@@ -229,21 +229,72 @@ def open_in_file_manager(path: str) -> None:
         pass
 
 
-def _ps_quote(s: str) -> str:
-    """Quote a string as a PowerShell single-quoted literal."""
-    return "'" + s.replace("'", "''") + "'"
-
 def _as_quote(s: str) -> str:
     """Quote a string as an AppleScript double-quoted literal."""
     return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def _create_lnk(target: str, link_path: str) -> str:
+    """
+    Create a Windows .lnk shortcut to a folder using pylnk3.
+    pylnk3 is a pure-Python library that handles the .lnk binary format
+    correctly without needing COM or WScript.Shell — both of which silently
+    fail in frozen PyInstaller apps running alongside WebView2.
+
+    Requires: pip install pylnk3  (bundled automatically by PyInstaller)
+    """
+    import datetime
+
+    try:
+        import pylnk3
+    except ImportError:
+        return ("pylnk3 not installed. Run: pip install pylnk3  "
+                "then rebuild the app.")
+
+    target = os.path.normpath(target).replace('/', '\\')
+
+    if len(target) < 3 or target[1] != ':':
+        return f"Could not parse drive letter from path: {target!r}"
+
+    drive_str   = target[:2]              # e.g. "Y:"
+    folder_name = target.rsplit('\\', 1)[-1]
+
+    now     = datetime.datetime.now()
+    segment = pylnk3.PathSegmentEntry()
+    segment.type       = pylnk3.TYPE_FOLDER
+    segment.file_size  = 0
+    segment.short_name = folder_name
+    segment.full_name  = folder_name
+    segment.created    = now
+    segment.modified   = now
+    segment.accessed   = now
+
+    lnk = pylnk3.Lnk()
+    lnk.shell_item_id_list       = pylnk3.LinkTargetIDList()
+    lnk.shell_item_id_list.items = [
+        pylnk3.RootEntry(pylnk3.ROOT_MY_COMPUTER),
+        pylnk3.DriveEntry(drive_str),
+        segment,
+    ]
+    lnk.work_dir = target
+
+    try:
+        if os.path.lexists(link_path):
+            os.remove(link_path)
+        lnk.save(link_path)
+        return ''
+    except Exception as e:
+        return str(e)
+
 
 def create_shortcut(target: str, shortcut_dir: str, name: str) -> str:
     """
     Create a native shortcut to the `target` folder inside `shortcut_dir`,
     named `name`. Returns '' on success or an error message on failure.
 
-    Platform behavior (chosen so the shortcut survives sitting in Dropbox):
-      - Windows: a real .lnk shortcut file (created via PowerShell, no deps).
+    Platform behavior:
+      - Windows: a .lnk file created via pylnk3 (pure Python, no COM).
+                 Opens with the user's default file manager.
       - macOS:   a Finder alias (Dropbox treats it as a file, unlike a symlink
                  which Dropbox would follow and duplicate the whole show).
       - Linux:   a symbolic link.
@@ -254,16 +305,7 @@ def create_shortcut(target: str, shortcut_dir: str, name: str) -> str:
 
         if os.name == "nt":
             link = os.path.join(shortcut_dir, name + ".lnk")
-            ps = ("$ws = New-Object -ComObject WScript.Shell; "
-                  f"$s = $ws.CreateShortcut({_ps_quote(link)}); "
-                  f"$s.TargetPath = {_ps_quote(target)}; "
-                  "$s.Save()")
-            r = subprocess.run(
-                ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
-                capture_output=True, text=True)
-            if r.returncode != 0:
-                return (r.stderr or "").strip() or "Could not create .lnk shortcut."
-            return ""
+            return _create_lnk(target, link)
 
         elif sys.platform == "darwin":
             link = os.path.join(shortcut_dir, name)
@@ -397,7 +439,6 @@ def copy_and_rename(src: str, dest_dir: str, show_name: str,
         progress_cb(total_files + 1, total_files + 1)
 
     return total_files - len([e for e in errors if "rename" not in e]), renamed, errors
-
 
 
 # ── Per-user settings persistence ────────────────────────────────────────────
