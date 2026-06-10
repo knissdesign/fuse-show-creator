@@ -7,7 +7,7 @@ engine, default-path resolution, the copy + FULLSHOW rename routine, and the
 and has no dependency on any GUI toolkit.
 """
 
-import os, re, glob, shutil, math, sys, subprocess, json
+import os, re, glob, shutil, math, sys, subprocess, json, platform, getpass, datetime, time
 from collections import Counter
 
 
@@ -287,6 +287,152 @@ def _create_lnk(target: str, link_path: str) -> str:
         return str(e)
 
 
+def _set_hidden(path: str) -> None:
+    """Set the hidden file attribute on Windows so the file is invisible in
+    Explorer.  On macOS/Linux the leading dot already handles this."""
+    if os.name != "nt":
+        return
+    try:
+        import ctypes
+        FILE_ATTRIBUTE_HIDDEN = 0x02
+        existing = ctypes.windll.kernel32.GetFileAttributesW(path)  # type: ignore
+        ctypes.windll.kernel32.SetFileAttributesW(                   # type: ignore
+            path, existing | FILE_ATTRIBUTE_HIDDEN)
+    except Exception:
+        pass
+
+
+def _get_unc_path(path: str) -> str:
+    """On Windows, try to resolve a mapped drive letter (e.g. Y:\\) to its
+    underlying UNC path (e.g. \\\\server\\share).  Returns '' if the path
+    is not on a mapped drive or the resolution fails."""
+    if os.name != "nt" or len(path) < 2 or path[1] != ":":
+        return ""
+    try:
+        import ctypes
+        drive = path[:2] + "\\"
+        buf = ctypes.create_unicode_buffer(512)
+        size = ctypes.c_ulong(512)
+        if ctypes.windll.mpr.WNetGetConnectionW(drive, buf, ctypes.byref(size)) == 0:  # type: ignore
+            return buf.value
+    except Exception:
+        pass
+    return ""
+
+
+def write_show_meta(
+    dest_show: str,
+    *,
+    artist: str,
+    desc: str,
+    year: str,
+    show_name: str,
+    src: str,
+    dest: str,
+    make_shortcut: bool,
+    shortcut_dir: str,
+    shortcut_created: bool,
+    shortcut_error: str,
+    files_copied: int,
+    items_renamed: int,
+    copy_errors: list,
+    duration_seconds: float,
+    success: bool,
+    version: str,
+) -> None:
+    """
+    Write (or append to) a hidden .show_meta.json provenance file inside the
+    newly-created show folder.  Each call appends a new entry to the top-level
+    JSON array so the file accumulates a history if the folder is ever re-built.
+
+    The file is hidden on both macOS (leading dot) and Windows (hidden
+    attribute set after writing).  A write failure is silently swallowed —
+    metadata logging should never prevent a show from being created.
+    """
+    meta_path = os.path.join(dest_show, ".show_meta.json")
+
+    # ── Timestamps ────────────────────────────────────────────────────────
+    now_utc   = datetime.datetime.now(datetime.timezone.utc)
+    now_local = now_utc.astimezone()
+    timestamp = {
+        "utc":      now_utc.isoformat(),
+        "local":    now_local.isoformat(),
+        "timezone": now_local.tzname() or "",
+    }
+
+    # ── Machine identity ──────────────────────────────────────────────────
+    try:
+        user = getpass.getuser()
+    except Exception:
+        user = os.environ.get("USER") or os.environ.get("USERNAME") or "unknown"
+
+    created_by = {
+        "user":     user,
+        "hostname": platform.node(),
+        "os":       f"{platform.system()} {platform.release()}".strip(),
+    }
+
+    # ── Network drive UNC resolution (Windows only) ───────────────────────
+    src_unc  = _get_unc_path(src)
+    dest_unc = _get_unc_path(dest)
+    network  = {}
+    if src_unc:
+        network["template_unc"] = src_unc
+    if dest_unc:
+        network["dest_unc"] = dest_unc
+
+    # ── Assemble entry ────────────────────────────────────────────────────
+    entry = {
+        "success":   success,
+        "timestamp": timestamp,
+        "created_by": created_by,
+        "app": {
+            "name":    "Fuse Show Creator",
+            "version": version,
+        },
+        "show": {
+            "name":        show_name,
+            "artist":      artist,
+            "description": desc,
+            "year":        year,
+        },
+        "settings": {
+            "template_dir":     src,
+            "active_show_dir":  dest,
+            "shortcut_created": shortcut_created,
+            "shortcut_dir":     shortcut_dir if make_shortcut else "",
+            "shortcut_error":   shortcut_error,
+        },
+        "copy_stats": {
+            "files_copied":    files_copied,
+            "items_renamed":   items_renamed,
+            "duration_seconds": duration_seconds,
+            "errors":          copy_errors,
+        },
+    }
+    if network:
+        entry["network"] = network
+
+    # ── Append to existing file, or start a new array ─────────────────────
+    entries: list = []
+    if os.path.exists(meta_path):
+        try:
+            with open(meta_path, "r", encoding="utf-8") as f:
+                existing = json.load(f)
+            entries = existing if isinstance(existing, list) else [existing]
+        except Exception:
+            entries = []
+
+    entries.append(entry)
+
+    try:
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump(entries, f, indent=2)
+        _set_hidden(meta_path)
+    except Exception:
+        pass   # metadata write failure must never crash the app
+
+
 def create_shortcut(target: str, shortcut_dir: str, name: str) -> str:
     """
     Create a native shortcut to the `target` folder inside `shortcut_dir`,
@@ -342,6 +488,107 @@ def create_shortcut(target: str, shortcut_dir: str, name: str) -> str:
         return str(e)
 
 
+def _set_birthtime_macos(path: str, now: float) -> None:
+    """Set the birthtime (Date Created) on macOS using setattrlist(2).
+    os.utime() only covers atime/mtime; birthtime needs a direct syscall."""
+    try:
+        import ctypes, struct
+        libc = ctypes.CDLL(None, use_errno=True)   # libSystem on macOS
+
+        ATTR_BIT_MAP_COUNT = 5
+        ATTR_CMN_CRTIME    = 0x00000200
+
+        # struct attrlist (24 bytes):
+        #   u_short bitmapcount, u_short reserved, u_int32_t commonattr,
+        #   u_int32_t volattr, u_int32_t dirattr, u_int32_t fileattr, u_int32_t forkattr
+        al = struct.pack('=HHIIIII',
+                         ATTR_BIT_MAP_COUNT, 0, ATTR_CMN_CRTIME, 0, 0, 0, 0)
+
+        # struct timespec (16 bytes on 64-bit macOS):
+        #   __darwin_time_t tv_sec (8 bytes), long tv_nsec (8 bytes)
+        ts = struct.pack('=qq', int(now), int((now % 1) * 1_000_000_000))
+
+        al_buf = ctypes.create_string_buffer(al)
+        ts_buf = ctypes.create_string_buffer(ts)
+
+        libc.setattrlist(
+            path.encode('utf-8'), al_buf,
+            ts_buf, ctypes.c_size_t(len(ts)),
+            ctypes.c_ulong(0)
+        )
+    except Exception:
+        pass
+
+
+def _set_file_times_windows(path: str, now: float) -> None:
+    """Set creation time AND last-write time on Windows using SetFileTime.
+
+    os.utime() opens with GENERIC_WRITE internally, which Dropbox / mapped
+    network drives often refuse.  Opening with FILE_WRITE_ATTRIBUTES (which
+    is all SetFileTime actually needs) succeeds where os.utime silently fails,
+    explaining why Created updated but Modified did not.  We set both in one
+    handle open so FILE_FLAG_BACKUP_SEMANTICS (required for directories) only
+    needs to be applied once.
+    """
+    try:
+        import ctypes, ctypes.wintypes as wt
+
+        # Convert Unix timestamp → Windows FILETIME
+        # (100-nanosecond intervals since 1601-01-01 UTC)
+        EPOCH_AS_FILETIME = 116_444_736_000_000_000
+        ft_val = int(now * 10_000_000) + EPOCH_AS_FILETIME
+
+        class FILETIME(ctypes.Structure):
+            _fields_ = [('dwLowDateTime',  wt.DWORD),
+                        ('dwHighDateTime', wt.DWORD)]
+
+        ft  = FILETIME(ft_val & 0xFFFFFFFF, ft_val >> 32)
+        k32 = ctypes.windll.kernel32          # type: ignore
+
+        # FILE_FLAG_BACKUP_SEMANTICS is required to open a directory handle
+        handle = k32.CreateFileW(
+            path,
+            0x0100,       # FILE_WRITE_ATTRIBUTES
+            0x0007,       # FILE_SHARE_READ | WRITE | DELETE
+            None,
+            3,            # OPEN_EXISTING
+            0x02000000,   # FILE_FLAG_BACKUP_SEMANTICS (required for dirs)
+            None
+        )
+        if handle == ctypes.c_void_p(-1).value:
+            return
+        try:
+            # SetFileTime(hFile, lpCreationTime, lpLastAccessTime, lpLastWriteTime)
+            # Set creation time and last-write time; leave last-access as-is.
+            k32.SetFileTime(handle, ctypes.byref(ft), None, ctypes.byref(ft))
+        finally:
+            k32.CloseHandle(handle)
+    except Exception:
+        pass
+
+
+def _reset_timestamps(path: str) -> None:
+    """Reset atime, mtime, and birth/creation time to now.
+    On Windows we skip os.utime entirely — it uses GENERIC_WRITE internally
+    which network shares often deny, causing silent failure.  SetFileTime
+    with FILE_WRITE_ATTRIBUTES (used by _set_file_times_windows) is what
+    the filesystem actually requires and handles all three timestamps."""
+    now = time.time()
+    if sys.platform == 'darwin':
+        try:
+            os.utime(path, None)    # atime + mtime
+        except Exception:
+            pass
+        _set_birthtime_macos(path, now)
+    elif os.name == 'nt':
+        _set_file_times_windows(path, now)   # creation + last-write via SetFileTime
+    else:
+        try:
+            os.utime(path, None)
+        except Exception:
+            pass
+
+
 def copy_and_rename(src: str, dest_dir: str, show_name: str,
                     progress_cb=None, exclude_dirs=None, rename_dirs=None) -> tuple:
     """
@@ -377,6 +624,7 @@ def copy_and_rename(src: str, dest_dir: str, show_name: str,
     def _copy(s, d):
         try:
             shutil.copy2(s, d)
+            _reset_timestamps(d)    # reset atime, mtime, and birth/creation time
         except Exception as e:
             errors.append(f"{s}: {e}")
         counter["n"] += 1
@@ -437,6 +685,15 @@ def copy_and_rename(src: str, dest_dir: str, show_name: str,
 
     if progress_cb:
         progress_cb(total_files + 1, total_files + 1)
+
+    # Reset timestamps on all directories in the new show folder.
+    # Done last (after renaming) so rename operations don't re-dirty
+    # a parent folder's mtime before we get a chance to reset it.
+    for root, dirs, _ in os.walk(dest_show, topdown=False):
+        try:
+            _reset_timestamps(root)
+        except Exception:
+            pass
 
     return total_files - len([e for e in errors if "rename" not in e]), renamed, errors
 

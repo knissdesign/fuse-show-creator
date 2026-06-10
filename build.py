@@ -26,6 +26,7 @@ if sys.platform == "darwin":
     cmd = [
         sys.executable, "-m", "PyInstaller",
         "--windowed",
+        "--noconfirm",
         "--name", "FuseShowCreator",
         "--add-data", "ui:ui",
         "--collect-all", "webview",
@@ -38,6 +39,8 @@ else:  # Windows
     cmd = [
         sys.executable, "-m", "PyInstaller",
         "--windowed",
+        "--noconfirm",
+        "--onefile",
         "--name", "FuseShowCreator",
         "--add-data", "ui;ui",
         "--collect-all", "webview",
@@ -65,3 +68,11 @@ if sys.platform == "darwin":
         print(f"Info.plist → CFBundleShortVersionString = {version}")
 
 print("Build complete.")
+
+# ── 4. Clean up the onedir folder that PyInstaller leaves alongside ────────
+#    the .exe / .app — it's the unpacked contents and isn't needed.
+import shutil
+onedir = os.path.join(here, "dist", "FuseShowCreator")
+if os.path.isdir(onedir):
+    shutil.rmtree(onedir)
+    print("Removed leftover dist/FuseShowCreator folder.")

@@ -132,25 +132,61 @@ class Api:
         # restore the cad param and pass L.cad_exclusions/cad_rename_map here.
 
         def run():
+            import time
+            start = time.monotonic()
+
             def progress(done, total):
                 self._js(f"window.onProgress({done}, {total})")
+
+            # ── Copy ──────────────────────────────────────────────────────
+            count, renamed, copy_errors = 0, 0, []
+            copy_exc: Exception | None = None
             try:
-                count, renamed, errors = L.copy_and_rename(
+                count, renamed, copy_errors = L.copy_and_rename(
                     src, dest, show_name, progress)
             except Exception as e:
-                self._js("window.onError(%s)" % _jsstr(str(e)))
+                copy_exc = e
+
+            duration = round(time.monotonic() - start, 2)
+
+            # ── Shortcut (only if copy succeeded cleanly) ─────────────────
+            shortcut_created = False
+            shortcut_err     = ""
+            shortcut_note    = ""
+            if copy_exc is None and not copy_errors and make_shortcut:
+                shortcut_err     = L.create_shortcut(dest_show, shortcut_dir, show_name)
+                shortcut_created = not bool(shortcut_err)
+                shortcut_note    = ("Shortcut created." if shortcut_created
+                                    else f"Shortcut failed: {shortcut_err}")
+
+            # ── Write provenance metadata ─────────────────────────────────
+            # Always attempt this, even on failure, so errors are on disk.
+            # Only skip if the destination folder was never created.
+            if os.path.isdir(dest_show):
+                all_errors = (([str(copy_exc)] if copy_exc else [])
+                              + (copy_errors or []))
+                L.write_show_meta(
+                    dest_show,
+                    artist=artist, desc=desc, year=year, show_name=show_name,
+                    src=src, dest=dest,
+                    make_shortcut=make_shortcut, shortcut_dir=shortcut_dir,
+                    shortcut_created=shortcut_created, shortcut_error=shortcut_err,
+                    files_copied=count, items_renamed=renamed,
+                    copy_errors=all_errors, duration_seconds=duration,
+                    success=(copy_exc is None and not copy_errors),
+                    version=VERSION,
+                )
+
+            # ── Report result to UI ───────────────────────────────────────
+            if copy_exc is not None:
+                self._js("window.onError(%s)" % _jsstr(str(copy_exc)))
                 return
-            if errors:
+            if copy_errors:
                 msg = (f"{count} files copied, {renamed} item(s) renamed.\n\n"
-                       f"{len(errors)} error(s):\n" + "\n".join(errors[:10]))
+                       f"{len(copy_errors)} error(s):\n"
+                       + "\n".join(copy_errors[:10]))
                 self._js("window.onError(%s)" % _jsstr(msg))
                 return
-
-            # Optional: create a shortcut to the new show folder.
-            shortcut_note = ""
-            if make_shortcut:
-                err = L.create_shortcut(dest_show, shortcut_dir, show_name)
-                shortcut_note = "Shortcut created." if not err else f"Shortcut failed: {err}"
 
             self._js("window.onComplete(%s, %s, %d, %d, %s)" % (
                 _jsstr(show_name), _jsstr(dest_show), count, renamed,
