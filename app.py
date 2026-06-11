@@ -138,6 +138,13 @@ class Api:
             def progress(done, total):
                 self._js(f"window.onProgress({done}, {total})")
 
+            # ── Zero-byte check (Dropbox not fully downloaded) ────────────
+            zero_byte = L.find_zero_byte_files(src)
+            if zero_byte:
+                import json as _json
+                self._js(f"window.onZeroByteWarning({_json.dumps(zero_byte)}, {_json.dumps(src)})")
+                return
+
             # ── Copy ──────────────────────────────────────────────────────
             count, renamed, copy_errors = 0, 0, []
             copy_exc: Exception | None = None

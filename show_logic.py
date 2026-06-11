@@ -589,6 +589,20 @@ def _reset_timestamps(path: str) -> None:
             pass
 
 
+def find_zero_byte_files(src: str) -> list:
+    """Return relative paths of any 0-byte files under src (Dropbox placeholders)."""
+    result = []
+    for root, _, files in os.walk(src):
+        for f in files:
+            full = os.path.join(root, f)
+            try:
+                if os.path.getsize(full) == 0:
+                    result.append(os.path.relpath(full, src))
+            except OSError:
+                pass
+    return result
+
+
 def copy_and_rename(src: str, dest_dir: str, show_name: str,
                     progress_cb=None, exclude_dirs=None, rename_dirs=None) -> tuple:
     """
